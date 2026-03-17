@@ -1,4 +1,4 @@
-# spank-lab
+# Spank Dat Claude
 
 **Slap your laptop to steer Claude Code's behavior.**
 
