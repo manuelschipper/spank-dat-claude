@@ -28,7 +28,7 @@ SCORE_CACHE = os.environ.get("SPANK_SCORE_CACHE", "/tmp/spank-vibe-score.json")
 
 # Scoring parameters
 WINDOW_SECONDS = 600       # look at last 10 minutes
-DECAY_HALF_LIFE = 15.0     # slaps decay with 15s half-life
+DECAY_HALF_LIFE = 45.0     # slaps decay with 45s half-life
 
 # Thresholds: calm → frustrated → hot → angry
 FRUSTRATED_THRESHOLD = 3.0
@@ -213,7 +213,8 @@ def daemon_mode():
     print(f"vibe-check: writing to {SCORE_CACHE}", file=sys.stderr)
     print("vibe-check: Ctrl+C to stop", file=sys.stderr)
     print("", file=sys.stderr)
-    print("  Levels:  calm < 1.0 < frustrated < 3.0 < hot < 5.0 < angry", file=sys.stderr)
+    print(f"  Levels:  calm < {FRUSTRATED_THRESHOLD} < frustrated < {HOT_THRESHOLD} < hot < {ANGRY_THRESHOLD} < angry", file=sys.stderr)
+    print(f"  Refresh: every 500ms", file=sys.stderr)
     print("", file=sys.stderr)
 
     last_level = None
@@ -229,6 +230,7 @@ def daemon_mode():
                     "score": round(score, 2),
                     "level": level,
                     "events_in_window": len(events),
+                    "updated_at": datetime.now().isoformat(),
                 }
                 tmp = Path(SCORE_CACHE).with_suffix(".tmp")
                 tmp.write_text(json.dumps(cache))
@@ -240,16 +242,17 @@ def daemon_mode():
                 # missing cache is not fatal.
                 pass
 
-            if level != last_level:
-                emoji = {"calm": "~", "frustrated": "!", "hot": "!!", "angry": "!!!"}
-                print(
-                    f"vibe-check: {emoji.get(level, '?')} {level} "
-                    f"(score={score:.2f}, slaps={len(events)})",
-                    file=sys.stderr,
-                )
-                last_level = level
+            emoji = {"calm": "~", "frustrated": "!", "hot": "!!", "angry": "!!!"}
+            ts = datetime.now().strftime("%H:%M:%S")
+            marker = " <<" if level != last_level else ""
+            print(
+                f"[{ts}] {emoji.get(level, '?')} {level} "
+                f"(score={score:.2f}, slaps={len(events)}){marker}",
+                file=sys.stderr,
+            )
+            last_level = level
 
-            time.sleep(2)
+            time.sleep(0.5)
         except KeyboardInterrupt:
             print("\nvibe-check: bye!", file=sys.stderr)
             try:

@@ -7,72 +7,81 @@ A physical frustration feedback loop for AI coding assistants. Slap your MacBook
 ## Architecture
 
 ```
-                         spank-lab
-
-  You slap laptop       accelerometer data        timestamped events
-  +-----------+     +-------------------+     +--------------------+
-  |  MacBook  | --> |  spank (Go CLI)   | --> |  ~/.spank/events   |
-  +-----------+     +-------------------+     +--------------------+
-                                                       |
-                                                       v
-                    +-------------------+     +--------------------+
-                    |  score cache      | <-- |  vibe-check daemon |
-                    |  ~/.spank/score   |     |  (Python)          |
-                    +-------------------+     +--------------------+
+  You slap laptop       accelerometer (IOKit HID)    JSON events
+  +-----------+     +-------------------------+     +------------------------+
+  |  MacBook  | --> |  spank (Go, --stdio)    | --> | /tmp/spank-events.jsonl|
+  +-----------+     +-------------------------+     +------------------------+
+                                                             |
+                                                             v
+                    +------------------------+     +------------------------+
+                    | /tmp/spank-vibe-       | <-- |  vibe-check daemon     |
+                    |   score.json           |     |  (Python, 500ms loop)  |
+                    +------------------------+     +------------------------+
                              |
                              v
-                    +-------------------+     +--------------------+
-                    |  PreToolUse hook  | --> |  Claude Code       |
-                    |  (spank-claude)   |     |  (adjusts behavior)|
-                    +-------------------+     +--------------------+
+                    +------------------------+     +------------------------+
+                    |  PreToolUse hook       | --> |  Claude Code           |
+                    |  (additionalContext)   |     |  (adjusts behavior)    |
+                    +------------------------+     +------------------------+
 ```
 
 ## Components
 
 | Component | Language | Description |
 |-----------|----------|-------------|
-| **spank** | Go | Reads the accelerometer via `sudo powermetrics`, detects slaps, writes events |
-| **mcp-spank** | Go | MCP server exposing slap data to Claude via tool calls |
-| **vibe-check** | Python | Daemon that reads events, computes a rolling frustration score, writes to cache |
-| **spank-claude** | Bash | PreToolUse hook script that reads the score cache and injects context into Claude Code |
+| **spank** | Go | Fork of taigrr/spank. Reads Apple Silicon accelerometer via IOKit HID, detects slaps, outputs JSON events |
+| **vibe-check** | Python | Daemon that scores slap events with exponential decay. PreToolUse hook injects behavioral context into Claude Code via `additionalContext` |
+| **spank-claude** | Bash | Launcher script for spank in silent event-only mode |
 
 ## Quick Setup
 
 ```bash
-# 1. Build the Go binaries
+# 1. Build spank
 make
 
-# 2. Start the slap detector (needs sudo for accelerometer access)
-sudo ./spank/spank
+# 2. Start the slap detector (needs sudo for accelerometer)
+# Terminal 1:
+./spank-claude
 
 # 3. Start the vibe-check daemon
-python3 vibe-check/vibe_check.py &
+# Terminal 2:
+python3 vibe-check/vibe_check.py
 
-# 4. Install the Claude Code hook
-cp spank-claude ~/.claude/hooks/spank-claude.sh
-chmod +x ~/.claude/hooks/spank-claude.sh
+# 4. Add the PreToolUse hook to ~/.claude/settings.json:
+# {
+#   "hooks": {
+#     "PreToolUse": [
+#       {
+#         "matcher": "",
+#         "hooks": [{
+#           "type": "command",
+#           "command": "python3 /path/to/spank-lab/vibe-check/vibe_check.py --hook"
+#         }]
+#       }
+#     ]
+#   }
+# }
 ```
 
 ## Configuration
 
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
-| `SPANK_EVENTS` | `~/.spank/events` | Path to the slap events file |
-| `SPANK_SCORE_CACHE` | `~/.spank/score` | Path to the computed frustration score |
-| `SPANK_BINARY` | `spank` | Path to the spank binary |
+| `SPANK_EVENTS` | `/tmp/spank-events.jsonl` | Path to the slap events file |
+| `SPANK_SCORE_CACHE` | `/tmp/spank-vibe-score.json` | Path to the cached frustration score |
 
 ## Frustration Levels
 
-| Level | Score Range | Claude's Behavior |
-|-------|------------|-------------------|
-| **calm** | < 1.0 | Normal operation |
-| **frustrated** | 1.0 -- 3.0 | Double-checks assumptions, keeps responses concise |
-| **hot** | 3.0 -- 5.0 | Asks before every non-trivial action, shorter responses |
-| **angry** | > 5.0 | Minimal actions, asks for confirmation on everything |
+| Level | Score | Claude's Behavior |
+|-------|-------|-------------------|
+| **calm** | < 3.0 | Normal autonomous operation |
+| **frustrated** | 3.0 -- 7.0 | Double-checks assumptions, concise responses, safe steps |
+| **hot** | 7.0 -- 10.0 | Slows down, presents options, acknowledges mistakes |
+| **angry** | > 10.0 | Full stop. Asks what went wrong. Baby steps only. |
 
 ## Requirements
 
 - Apple Silicon MacBook (M2 or later)
-- `sudo` access (required for `powermetrics` accelerometer data)
-- Go 1.21+ (to build spank and mcp-spank)
+- `sudo` access (required for IOKit HID accelerometer)
+- Go 1.22+ (to build spank)
 - Python 3.10+ (for vibe-check)
