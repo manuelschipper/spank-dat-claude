@@ -79,6 +79,10 @@ python3 vibe-check/vibe_check.py
 | **hot** | 7.0 -- 10.0 | Slows down, presents options, acknowledges mistakes |
 | **angry** | > 10.0 | Full stop. Asks what went wrong. Baby steps only. |
 
+## Credits
+
+Built on top of [taigrr/spank](https://github.com/taigrr/spank) -- the original "slap your MacBook, it yells back" project. We forked it, added `--silent` mode, and wired it into Claude Code's hook system.
+
 ## Requirements
 
 - Apple Silicon MacBook (M2 or later)
