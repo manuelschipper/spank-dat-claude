@@ -33,8 +33,15 @@ const maxEvents = 100
 
 type EventStore struct {
 	mu     sync.RWMutex
+	cond   *sync.Cond
 	events []SlapEvent
 	total  int
+}
+
+func NewEventStore() *EventStore {
+	es := &EventStore{}
+	es.cond = sync.NewCond(&es.mu)
+	return es
 }
 
 func (es *EventStore) Add(ev SlapEvent) {
@@ -45,6 +52,7 @@ func (es *EventStore) Add(ev SlapEvent) {
 		es.events = es.events[len(es.events)-maxEvents:]
 	}
 	es.total++
+	es.cond.Broadcast()
 }
 
 func (es *EventStore) Recent(n int) []SlapEvent {
@@ -66,19 +74,27 @@ func (es *EventStore) Total() int {
 }
 
 func (es *EventStore) WaitForSlap(timeout time.Duration) (*SlapEvent, error) {
-	deadline := time.Now().Add(timeout)
-	startTotal := es.Total()
+	es.mu.Lock()
+	startTotal := es.total
 
-	for time.Now().Before(deadline) {
-		if es.Total() > startTotal {
-			events := es.Recent(1)
-			if len(events) > 0 {
-				return &events[0], nil
-			}
+	// Timer goroutine: broadcast after timeout so Wait() unblocks.
+	timer := time.AfterFunc(timeout, func() {
+		es.cond.Broadcast()
+	})
+	defer timer.Stop()
+
+	for es.total == startTotal {
+		es.cond.Wait()
+		if es.total == startTotal {
+			// Woken by timeout, not by a new event.
+			es.mu.Unlock()
+			return nil, fmt.Errorf("timeout: no slap detected within %v", timeout)
 		}
-		time.Sleep(50 * time.Millisecond)
 	}
-	return nil, fmt.Errorf("timeout: no slap detected within %v", timeout)
+
+	ev := es.events[len(es.events)-1]
+	es.mu.Unlock()
+	return &ev, nil
 }
 
 // --- MCP JSON-RPC types ---
@@ -157,15 +173,18 @@ type MCPServer struct {
 	writer io.Writer
 }
 
-func NewMCPServer(store *EventStore) *MCPServer {
+func NewMCPServer(store *EventStore, r io.Reader, w io.Writer) *MCPServer {
 	return &MCPServer{
 		store:  store,
-		reader: bufio.NewReader(os.Stdin),
-		writer: os.Stdout,
+		reader: bufio.NewReader(r),
+		writer: w,
 	}
 }
 
 func (s *MCPServer) writeResponse(resp interface{}) {
+	// json.Marshal cannot fail here: resp is always MCPResponse or
+	// MCPNotification — structs with string/int/map/slice fields, no
+	// channels, funcs, or cycles.
 	data, _ := json.Marshal(resp)
 	fmt.Fprintf(s.writer, "%s\n", data)
 }
@@ -262,7 +281,9 @@ func (s *MCPServer) toolWaitForSlap(args json.RawMessage) (interface{}, error) {
 	}
 	params.TimeoutSeconds = 30
 	if len(args) > 0 {
-		json.Unmarshal(args, &params)
+		if err := json.Unmarshal(args, &params); err != nil {
+			fmt.Fprintf(os.Stderr, "mcp-spank: wait_for_slap: bad args: %v\n", err)
+		}
 	}
 	if params.TimeoutSeconds <= 0 {
 		params.TimeoutSeconds = 30
@@ -285,7 +306,9 @@ func (s *MCPServer) toolGetRecentSlaps(args json.RawMessage) (interface{}, error
 	}
 	params.Count = 5
 	if len(args) > 0 {
-		json.Unmarshal(args, &params)
+		if err := json.Unmarshal(args, &params); err != nil {
+			fmt.Fprintf(os.Stderr, "mcp-spank: get_recent_slaps: bad args: %v\n", err)
+		}
 	}
 	if params.Count <= 0 {
 		params.Count = 5
@@ -462,7 +485,7 @@ func main() {
 		}
 	}
 
-	store := &EventStore{}
+	store := NewEventStore()
 
 	switch mode {
 	case "dry-run":
@@ -508,7 +531,7 @@ func main() {
 		go tailEvents(store, eventFile)
 	}
 
-	server := NewMCPServer(store)
+	server := NewMCPServer(store, os.Stdin, os.Stdout)
 	if err := server.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "mcp-spank: server error: %v\n", err)
 		os.Exit(1)

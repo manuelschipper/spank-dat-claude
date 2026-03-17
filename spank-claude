@@ -1,4 +1,5 @@
 #!/bin/bash
 # Start spank in silent event-only mode, appending to the shared events file.
 # Requires sudo for accelerometer access.
-exec sudo /Users/manuelangelschipper/repos/manuelschipper/spank-lab/spank/spank --stdio --silent >> /tmp/spank-events.jsonl
+SCRIPT_DIR="$(dirname "$0")"
+exec sudo "$SCRIPT_DIR/spank/spank" --stdio --silent >> "${SPANK_EVENTS:-/tmp/spank-events.jsonl}"

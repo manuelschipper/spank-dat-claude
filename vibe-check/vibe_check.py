@@ -24,7 +24,7 @@ from datetime import datetime
 from pathlib import Path
 
 EVENTS_FILE = os.environ.get("SPANK_EVENTS", "/tmp/spank-events.jsonl")
-SCORE_CACHE = "/tmp/spank-vibe-score.json"
+SCORE_CACHE = os.environ.get("SPANK_SCORE_CACHE", "/tmp/spank-vibe-score.json")
 
 # Scoring parameters
 WINDOW_SECONDS = 600       # look at last 10 minutes
@@ -107,8 +107,15 @@ def read_recent_events(window_seconds=WINDOW_SECONDS):
                                 "severity": ev.get("severity", ""),
                             })
                 except (json.JSONDecodeError, ValueError):
+                    # Malformed JSONL line from the accelerometer stream;
+                    # skip it and keep reading — one bad line shouldn't
+                    # invalidate the whole window.
                     continue
     except OSError:
+        # Events file may not exist yet (spank not running), or may be
+        # temporarily unreadable (race with log rotation). Return empty
+        # list so the caller sees "calm" — surfacing the error would
+        # crash the daemon or hook on a transient condition.
         pass
     return events
 
@@ -127,7 +134,7 @@ def compute_score(events):
     for ev in events:
         age = now - ev["time"]
         weight = 0.5 ** (age / DECAY_HALF_LIFE)
-        amp_factor = 1.0 + ev["amplitude"] * 2
+        amp_factor = 1.0 + min(ev["amplitude"], 1.0) * 2
         score += weight * amp_factor
     return score
 
@@ -166,6 +173,9 @@ def hook_mode():
     try:
         json.loads(sys.stdin.read())
     except (json.JSONDecodeError, ValueError):
+        # Claude Code sends hook input on stdin, but we don't need it —
+        # we only read the cached score file. Consume and discard so the
+        # pipe doesn't block. Malformed input is harmless here.
         pass
 
     # Fast path: read cached score from daemon
@@ -224,6 +234,10 @@ def daemon_mode():
                 tmp.write_text(json.dumps(cache))
                 tmp.rename(SCORE_CACHE)
             except OSError:
+                # Cache write failed (e.g. /tmp full, permissions). The
+                # daemon loop will retry in 2s. The hook falls back to
+                # computing from the events file directly, so a stale or
+                # missing cache is not fatal.
                 pass
 
             if level != last_level:
@@ -241,6 +255,10 @@ def daemon_mode():
             try:
                 Path(SCORE_CACHE).unlink(missing_ok=True)
             except OSError:
+                # Best-effort cleanup on exit. If the cache file can't be
+                # removed (already gone, permissions), it's stale data that
+                # will be overwritten on next daemon start. Not worth
+                # crashing the graceful shutdown path.
                 pass
             break
         except Exception as exc:
@@ -249,9 +267,25 @@ def daemon_mode():
 
 
 if __name__ == "__main__":
-    if "--score" in sys.argv:
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Reads spank accelerometer events and computes a frustration score.",
+    )
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--score", action="store_true",
+        help="One-shot: print current frustration score and exit",
+    )
+    group.add_argument(
+        "--hook", action="store_true",
+        help="Claude Code PreToolUse hook mode",
+    )
+    args = parser.parse_args()
+
+    if args.score:
         print_score()
-    elif "--hook" in sys.argv:
+    elif args.hook:
         hook_mode()
     else:
         daemon_mode()
