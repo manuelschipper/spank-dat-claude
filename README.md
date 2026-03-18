@@ -2,7 +2,9 @@
 
 **Slap your laptop to steer Claude Code's behavior.**
 
-A physical frustration feedback loop for AI coding assistants. Slap your MacBook when Claude does something dumb. The harder and more often you slap, the more cautious it becomes -- asking for confirmation, slowing down, double-checking assumptions.
+50% shitposting, 50% an experiment in Claude-human physical interaction modes.
+
+Slap your MacBook and Claude changes personality. Light taps make it go faster. Hard slaps make it stop and apologize. Get it drunk. Make it roast your code. Turn it into a motivational cult leader. 8 profiles, each with a unique mechanic for translating physical force into AI behavior.
 
 ## Quick Setup
 
