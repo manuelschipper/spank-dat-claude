@@ -4,7 +4,7 @@
 
 50% shitposting, 50% an experiment in Claude-human physical interaction modes.
 
-Slap your MacBook and Claude changes personality. Light taps make it go faster. Hard slaps make it stop and apologize. Get it drunk. Make it roast your code. 4 profiles, each with a unique mechanic for translating physical force into AI behavior.
+Slap your MacBook and Claude changes personality. Light taps make it go faster. Hard slaps make it stop and apologize. 2 profiles, each with a unique mechanic for translating physical force into AI behavior.
 
 ## Profiles
 
@@ -31,35 +31,6 @@ Uses **dual amplitude scoring** — events split by force into spur (< 0.25g) an
 | speed | light taps (spur >= 2.5) | `allow` all — full autonomy |
 | buck | hard slaps (buck >= 3.0) | `deny` all — blocked until calm |
 
-### drunk
-
-Progressive intoxication with a lifecycle. Getting drunk is easy. The hangover is the price.
-
-Slow decay (120s half-life) means getting drunk is a commitment. When score decays from above hammered, you enter **hangover** instead of sobering up normally. More slaps during hangover make it worse, not re-drunk. Must wait it out.
-
-| Level | Score | Behavior |
-|-------|-------|----------|
-| sober | < 2.0 | Normal Claude |
-| buzzed | 2.0 - 4.5 | Casual tone. `// this is more complex than it needs to be tbh` |
-| tipsy | 4.5 - 8.0 | `thingyList`, `doTheNeedful()`. Tangents. Second-guessing. |
-| hammered | 8.0 - 13.0 | `bigBoy`, `pleaseWork`, `temp2_final_v3_REAL`. `# TODO: understand what i wrote here when sober` |
-| blackout | > 13.0 | `frank` (no explanation). `# future me: i'm sorry`. 30% of tool calls randomly denied. |
-| hangover | decaying from hammered+ | `ugh can we do this later.` `# fix this when head stops pounding` |
-
-### roast
-
-Claude progressively roasts your code. Simple spectrum — fast 30s decay so it reads the room.
-
-| Level | Score | Style |
-|-------|-------|-------|
-| room temp | < 2.0 | Normal. No roast. |
-| mild salsa | 2.0 - 5.0 | "I see you named this `data`. Revolutionary." |
-| ghost pepper | 5.0 - 9.0 | `# fixing the variable from 'x' to something a human might recognize` |
-| surface of the sun | 9.0 - 14.0 | "And here we see the wild nested ternary, desperately trying to express a simple boolean." |
-| heat death | > 14.0 | `# here lies processData(). It tried its best. Its best was not enough.` |
-
-Rules: roasts must be specific to real code. Generic insults banned. Roast the code, not the person. Claude's own code must be impeccable.
-
 ## Quick Setup
 
 ```bash
@@ -74,10 +45,8 @@ make
 
 # 3. Start the vibe-check daemon (pick a profile)
 # Terminal 2:
-SPANK_PROFILE=angry python3 vibe-check/vibe_check.py    # default
+python3 vibe-check/vibe_check.py                        # angry (default)
 SPANK_PROFILE=horse python3 vibe-check/vibe_check.py    # speed/buck
-SPANK_PROFILE=drunk python3 vibe-check/vibe_check.py    # intoxication
-SPANK_PROFILE=roast python3 vibe-check/vibe_check.py    # code roasts
 
 # 4. Add the PreToolUse hook to ~/.claude/settings.json:
 ```
@@ -90,7 +59,7 @@ SPANK_PROFILE=roast python3 vibe-check/vibe_check.py    # code roasts
         "matcher": "",
         "hooks": [{
           "type": "command",
-          "command": "SPANK_PROFILE=angry python3 /path/to/spank-dat-claude/vibe-check/vibe_check.py --hook"
+          "command": "python3 /path/to/spank-dat-claude/vibe-check/vibe_check.py --hook"
         }]
       }
     ]
@@ -123,7 +92,7 @@ SPANK_PROFILE=roast python3 vibe-check/vibe_check.py    # code roasts
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SPANK_PROFILE` | `angry` | Profile: angry, horse, drunk, roast |
+| `SPANK_PROFILE` | `angry` | Profile: angry, horse |
 | `SPANK_EVENTS` | `/tmp/spank-events.jsonl` | Path to slap events file |
 | `SPANK_SCORE_CACHE` | `/tmp/spank-vibe-score.json` | Path to cached score |
 
