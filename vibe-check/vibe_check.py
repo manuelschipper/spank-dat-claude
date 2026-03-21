@@ -26,7 +26,7 @@ from pathlib import Path
 
 EVENTS_FILE = os.environ.get("SLAP_EVENTS", "/tmp/slap-events.jsonl")
 SCORE_CACHE = os.environ.get("SLAP_SCORE_CACHE", "/tmp/slap-vibe-score.json")
-PROFILE = os.environ.get("SLAP_PROFILE", "angry")
+PROFILE = os.environ.get("SLAP_PROFILE", "horse")
 
 # Scoring parameters
 WINDOW_SECONDS = 600       # look at last 10 minutes

@@ -46,8 +46,8 @@ make
 
 # 3. Start the vibe-check daemon (pick a profile)
 # Terminal 2:
-python3 vibe-check/vibe_check.py                       # angry (default)
-SLAP_PROFILE=horse python3 vibe-check/vibe_check.py    # speed/buck
+python3 vibe-check/vibe_check.py                       # horse (default)
+SLAP_PROFILE=angry python3 vibe-check/vibe_check.py    # frustration
 
 # 4. Add the PreToolUse hook to ~/.claude/settings.json:
 ```
@@ -93,7 +93,7 @@ SLAP_PROFILE=horse python3 vibe-check/vibe_check.py    # speed/buck
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SLAP_PROFILE` | `angry` | Profile: angry, horse |
+| `SLAP_PROFILE` | `horse` | Profile: horse, angry |
 | `SLAP_EVENTS` | `/tmp/slap-events.jsonl` | Path to slap events file |
 | `SLAP_SCORE_CACHE` | `/tmp/slap-vibe-score.json` | Path to cached score |
 
